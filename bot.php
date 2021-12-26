@@ -81,3 +81,76 @@ if (!empty($data['message']['text'])) {
 	sendTelegram($method, $sendData);
 
 }
+
+#check is empty photo
+if (!empty($data['message']['photo'])) {
+
+	#pop photo info from data array
+	$photo = array_pop($data['message']['photo']);
+
+	#get basic info about file
+	$res = sendTelegram(
+		$method = 'getFile', 
+		$sendData = [
+			'file_id' => $photo['file_id']
+					]
+	);
+	
+	#get result response
+	$res = json_decode($res, true);
+
+	if ($res['ok']) {
+
+		#saving photo to images dir
+		$src = 'https://api.telegram.org/file/bot' . TOKEN . '/' . $res['result']['file_path'];
+		$dir = __DIR__ . '/images/' . time() . '-' . basename($src);
+ 
+ 		#answer to user photo saved
+		if (copy($src, $dir)) {
+			sendTelegram(
+				$method = 'sendMessage', 
+				$sendData = [
+					'chat_id' => $data['message']['chat']['id'],
+					'text' => 'Photo saved'
+							]
+			);
+		}
+	}
+
+	exit();	
+}
+
+#check is empty file
+if (!empty($data['message']['document'])) {
+
+	#get basic info about file
+	$res = sendTelegram(
+		$method = 'getFile', 
+		$sendData = [
+			'file_id' => $data['message']['document']['file_id']
+					]
+	);
+	
+	#get result response
+	$res = json_decode($res, true);
+
+	if ($res['ok']) {
+
+		#saving file to files dir
+		$src = 'https://api.telegram.org/file/bot' . TOKEN . '/' . $res['result']['file_path'];
+		$dest = __DIR__ . '/files/' . time() . '-' . $data['message']['document']['file_name'];
+ 
+ 		#answer to user file saved
+		if (copy($src, $dest)) {
+			sendTelegram(
+				$method = 'sendMessage', 
+				$sendData = [
+					'chat_id' => $data['message']['chat']['id'],
+					'text' => 'File saved'
+							]
+			);	
+		}
+	}
+	
+	exit();	
+}
