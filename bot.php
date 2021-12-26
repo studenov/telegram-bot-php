@@ -68,6 +68,26 @@ if (!empty($data['message']['text'])) {
 						];
 			break;
 
+		###Getting UAH exchange rates with privat24 API: usd, eur, rur, btc 	
+		case 'currency':
+			$answer = 'Currency Buy Sell';
+
+			#get and decode response from p24api
+			$response = file_get_contents('https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5');
+			$response = json_decode($response, true);
+
+			#build an answer with html tags
+			foreach ($response as $currencyKey => $currency) {
+				$answer .= "\n" . '<b>' . $currency['ccy'] . '</b>' . ' ' . $currency['buy'] . ' ' . $currency['sale'];
+			}
+
+			$method = 'sendMessage';
+			$sendData = [
+				'text' => $answer,
+				'parse_mode' => 'HTML'
+						];
+			break;
+
 		default:
 			$method = 'sendMessage';
 			$sendData = [
