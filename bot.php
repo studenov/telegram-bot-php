@@ -1,5 +1,9 @@
 <?php
 
+#use DomCrawler component for DOM
+require 'vendor/autoload.php';
+use Symfony\Component\DomCrawler\Crawler;
+
 #get and decode request
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -38,6 +42,79 @@ function sendTelegram($method, $response)
 	curl_close($ch);
  
 	return $res;
+}
+
+###Getting weather forecast from sinoptik.ua. Parsing content via Crawler lib
+#request example: weather Киев 5
+if (mb_stripos($data['message']['text'], 'weather') !== false) {
+
+	$option = explode(' ', $data['message']['text']);
+	$city = mb_strtolower($option[1], 'utf-8');
+
+	#if user has not entered the number of days. itll be default 1 day
+	$daysCount = isset($option[2]) ? $option[2] : 1;
+
+	#counter
+	$i = 0;
+
+	#get response
+	$response = file_get_contents('https://sinoptik.ua/погода-' . $city . '/10-дней');
+
+	#if request failed 
+	if($response === false) {
+		sendTelegram(
+			$method = 'sendMessage', 
+			$sendData = [
+				'chat_id' => $data['message']['chat']['id'],
+				'text' => 'Specify the city and count of days(max 10).' . "\n" . 'ex. weather Киев 7',
+						]
+		);
+		exit();
+	}
+
+	#create an instance of the Crawler to work with DOM  
+	$crawler = (new Crawler($response));
+
+	#parse for information block
+	$crawler = $crawler->filter('#blockDays > .tabs .main');
+
+	#get an array of title attributes
+	$titles = $crawler->filter('.weatherIco')->extract(array('title'));
+
+	#looking for sought-for nodes
+	foreach ($crawler as $key => $value) {
+
+		$emoji = '';
+
+		#checking for weather and adding an emoji to answer
+		if (mb_stripos($titles[$key], 'Ясно') !== false) $emoji .= "\u{2600}";
+		if (mb_stripos($titles[$key], 'Переменная облачность') !== false) $emoji .= "\u{26C5}";
+		if (mb_stripos($titles[$key], 'Облачно с прояснениями') !== false) $emoji .= "\u{26C5}";
+		if (mb_stripos($titles[$key], 'Небольшая облачность') !== false) $emoji .= "\u{1F324}";
+		if (mb_stripos($titles[$key], 'Сплошная облачность') !== false) $emoji .= "\u{2601}";
+		if (mb_stripos($titles[$key], 'снег') !== false) $emoji .= ' ' . "\u{1F328}";
+		if (mb_stripos($titles[$key], 'дождь') !== false) $emoji .= ' ' . "\u{1F327}";
+
+		#build an answer. textcontent + data from title attributes + weather emojies
+		$answer = $value->textContent . $titles[$key] . ' ' . $emoji . "\n";
+
+		#send answer to user
+		sendTelegram(
+			$method = 'sendMessage', 
+			$sendData = [
+				'chat_id' => $data['message']['chat']['id'],
+				'text' => $answer,
+				'parse_mode' => 'Markdown'
+						]
+		);
+
+		#limitation of days
+		if(++$i == $daysCount) exit(); 
+
+	}
+
+	exit();	
+
 }
 
 #check is empty message
